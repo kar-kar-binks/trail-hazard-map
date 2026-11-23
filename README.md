@@ -1,20 +1,23 @@
 ![demo](docs/demo.gif)
 
-[Full-quality video (mp4)](docs/demo.mp4) | [interactive 3D risk surface](web/surface3d.html) (download and open in a browser)
+[Full-quality video (mp4)](docs/demo.mp4)
 
-# trail-hazard-map (demo build)
+# trail-hazard-map
 
-Runs on a laptop, CPU only, no network, no API keys:
+## Trail danger map (open `web/index.html`)
 
-    pip install -e .[dev]
-    trail-hazard-map demo
+Pick a real Rhode Island trail from the dropdowns, or type a trail name and press Search. You get:
 
-Outputs land in `out/demo/`: `surface.html` (interactive 3D risk surface), `surface.png`, `demo.mp4`, `demo.gif`, `birdseye.png`, `score_strip.png`, `frame_overlays.png`, `flythrough.gif`, `scene_heat.ply`, `viewer.html` (three.js, needs internet for the CDN scripts), `report.md`, `metrics.json`, `hazards.json`, `segments.json`.
+- the trail drawn on real 3D terrain with satellite imagery, colored green to red by danger (with a soft heat glow);
+- a side-by-side walk-through view of the same terrain, with a Play button and a position slider;
+- an elevation profile colored by danger, plus stats (length, climb, max grade, mean danger, worst 100 m) and a "jump to worst spot" button.
 
-What is real: the quality filter, Harris + ratio-test matching + 8-point RANSAC baseline, multi-view log-odds fusion with k-view hazard verification, RANSAC ground plane, kNN slope/roughness, Zhang-Suen centerline, width / drop-off / step / clearance / sight-distance, percentile-normalized weighted scoring with per-segment explanations, heat recoloring and PLY export.
+Trails ship for Lincoln Woods, Neutaconkanut Hill, Diamond Hill, Snake Den and the Blackstone gorge trunkline trail (OpenStreetMap, ODbL). Search also queries OpenStreetMap live for any other named trail in Rhode Island. It needs internet (map tiles, terrain tiles).
 
-What is stubbed: Mapillary, VGGT, gsplat, SAM 2, SegFormer and Grounded-SAM-2 are replaced by a procedural 163k-Gaussian trail with injected hazards and simulated noisy per-view predictions. Metrics in `metrics.json` are against that injected ground truth, not real trails. `trail-hazard-map run` exits with an explanation until the GPU stack is wired in.
+How danger is computed here: from 10 m elevation data along and beside the trail: grade (40%), side drop-off within 10 m (35%) and ruggedness, meaning how fast the grade changes (25%), each scaled to 0-1. It is a terrain-based estimate and not a safety guarantee. It does not use computer vision, so it relaxes the "pixels only" rule from the original plan. The camera view is a rendered terrain view, not street photos.
 
-## 3D trail map
+## Computer-vision pipeline demo
 
-Open `web/trail3d.html` in a browser (needs internet). It shows real terrain with satellite imagery and OpenStreetMap trails draped on it for a few Providence-area parks. Trails and place lookup come live from Overpass and Nominatim; terrain is AWS terrain tiles. This is display only and has nothing to do with the hazard score.
+`pip install -e .[dev]` then `trail-hazard-map demo` runs the CPU-only pipeline on a synthetic splat: quality filter, Harris + RANSAC two-view baseline, multi-view fusion, geometry, scoring, heat recoloring and a flythrough. Mapillary, VGGT, gsplat and Grounded-SAM-2 are stubbed with simulated predictions, so its metrics are against injected ground truth. `trail-hazard-map run` exits with an explanation until the GPU stack is wired in.
+
+Regenerate the README clip with `python tools/record_demo.py web/index.html docs <area> <trail> <search> <area2> <trail2>` (needs playwright and Chrome). Rebuild trail data with `tools/build_trails.py`.
