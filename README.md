@@ -1,3 +1,7 @@
+![demo](docs/demo.gif)
+
+[Full-quality video (mp4)](docs/demo.mp4) | [interactive 3D risk surface](web/surface3d.html) (download and open in a browser)
+
 # trail-hazard-map (demo build)
 
 Runs on a laptop, CPU only, no network, no API keys:
@@ -5,7 +9,7 @@ Runs on a laptop, CPU only, no network, no API keys:
     pip install -e .[dev]
     trail-hazard-map demo
 
-Outputs land in `out/demo/`: `birdseye.png`, `score_strip.png`, `frame_overlays.png`, `flythrough.gif`, `scene_heat.ply`, `viewer.html` (three.js, needs internet for the CDN scripts), `report.md`, `metrics.json`, `hazards.json`, `segments.json`.
+Outputs land in `out/demo/`: `surface.html` (interactive 3D risk surface), `surface.png`, `demo.mp4`, `demo.gif`, `birdseye.png`, `score_strip.png`, `frame_overlays.png`, `flythrough.gif`, `scene_heat.ply`, `viewer.html` (three.js, needs internet for the CDN scripts), `report.md`, `metrics.json`, `hazards.json`, `segments.json`.
 
 What is real: the quality filter, Harris + ratio-test matching + 8-point RANSAC baseline, multi-view log-odds fusion with k-view hazard verification, RANSAC ground plane, kNN slope/roughness, Zhang-Suen centerline, width / drop-off / step / clearance / sight-distance, percentile-normalized weighted scoring with per-segment explanations, heat recoloring and PLY export.
 

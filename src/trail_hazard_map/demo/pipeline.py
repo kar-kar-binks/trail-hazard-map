@@ -15,7 +15,7 @@ from trail_hazard_map.geometry.profile import ground_profile, segment_profile, s
 from trail_hazard_map.scoring import combine as cb
 from trail_hazard_map.scoring import explain, terms
 from trail_hazard_map.semantics.fuse import fuse
-from trail_hazard_map.viz import overlays
+from trail_hazard_map.viz import overlays, surface
 from trail_hazard_map.viz.flythrough import fly
 from trail_hazard_map.viz.recolor import heat_colors, write_ply
 from trail_hazard_map.viz.viewer import write_viewer
@@ -149,8 +149,13 @@ def run_demo(cfg, out_dir):
     ]
     hz_primary = np.where(fz["verified"].any(1), fz["verified"].argmax(1), -1)
     write_viewer(out / "viewer.html", splat.xyz, splat.rgb, heat, seg_of, hz_primary, segments, rng)
-    fly(out / "flythrough.gif", splat.xyz, splat.rgb, heat, K, size, line, line_s, gz_s, gz, cfg["cameras"]["eye_height_m"])
-    log("viewer.html, flythrough.gif", t0)
+    raw, cam_xy = fly(out / "flythrough.gif", splat.xyz, splat.rgb, heat, K, size, line, line_s, gz_s, gz, cfg["cameras"]["eye_height_m"])
+    X, Y, Z = surface.risk_grid(splat.xyz, risk, focus)
+    zmax = float(np.ceil(Z.max() * 20) / 20)
+    np.savez(out / "surface_grid.npz", X=X, Y=Y, Z=Z, zmax=zmax)
+    surface.write_plotly(out / "surface.html", X, Y, Z, zmax)
+    surface.write_demo_video(out, raw, cam_xy, X, Y, Z, zmax)
+    log("viewer.html, flythrough.gif, surface.html, demo.mp4", t0)
 
     truth_h = {h: splat.hazard == h for h in range(len(HAZARDS))}
     fused_pr = {HAZARDS[h]: prf(fz["verified"][:, h], truth_h[h]) for h in range(len(HAZARDS))}

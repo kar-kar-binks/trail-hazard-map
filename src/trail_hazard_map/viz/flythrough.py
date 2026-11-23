@@ -4,8 +4,10 @@ from PIL import Image
 from trail_hazard_map.demo.render import look_at, render
 
 
-def fly(path, xyz, rgb, heat, K, size, line, line_s, gz_s, gz, eye_h, frames=72, alpha=0.65):
+def fly(path, xyz, rgb, heat, K, size, line, line_s, gz_s, gz, eye_h, frames=120, alpha=0.65):
     out = []
+    raw = []
+    xy = []
 
     def pos(q):
         return np.array([np.interp(q, line_s, line[:, 0]), np.interp(q, line_s, line[:, 1]), np.interp(q, gz_s, gz)])
@@ -19,4 +21,7 @@ def fly(path, xyz, rgb, heat, K, size, line, line_s, gz_s, gz, eye_h, frames=72,
         b, _ = render(xyz, heat, K, R, t, size)
         img = (1 - alpha) * a + alpha * b
         out.append(Image.fromarray((np.clip(img, 0, 1) * 255).astype(np.uint8)))
-    out[0].save(path, save_all=True, append_images=out[1:], duration=90, loop=0, optimize=True)
+        raw.append(np.clip(img, 0, 1))
+        xy.append(eye[:2])
+    out[0].save(path, save_all=True, append_images=out[1:], duration=70, loop=0, optimize=True)
+    return raw, xy
