@@ -1,0 +1,110 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>trail-hazard-map viewer</title>
+<style>
+html,body{margin:0;height:100%;background:#111;color:#eee;font:13px system-ui,sans-serif;overflow:hidden}
+#c{position:absolute;inset:0}
+#panel{position:absolute;top:10px;left:10px;width:300px;background:rgba(20,20,20,.88);padding:12px;border-radius:8px;max-height:calc(100% - 100px);overflow:auto}
+#panel h3{margin:0 0 8px;font-size:14px}
+#panel label{display:block;margin:4px 0}
+#strip{position:absolute;left:10px;right:10px;bottom:10px;height:54px;display:flex;gap:1px;background:rgba(20,20,20,.88);padding:6px;border-radius:8px}
+#strip div{flex:1;cursor:pointer;border-radius:2px}
+#strip div.sel{outline:2px solid #fff}
+table{width:100%;border-collapse:collapse;margin-top:6px}
+td{padding:2px 0}
+td:last-child{text-align:right}
+.bar{height:6px;background:#ff7f0e;border-radius:3px}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="panel">
+<h3>trail-hazard-map demo</h3>
+<label>RGB <input id="blend" type="range" min="0" max="100" value="100" style="width:170px"> heatmap</label>
+<div id="layers"></div>
+<div id="info" style="margin-top:10px;color:#bbb">Click the cloud or a bar below to inspect a 2 m segment.</div>
+</div>
+<div id="strip"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+const D = __DATA__;
+const dec = (s, T) => { const b = atob(s), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return new T(u.buffer); };
+const N = D.n;
+const xyz = dec(D.xyz, Float32Array), rgb = dec(D.rgb, Uint8Array), heat = dec(D.heat, Uint8Array), seg = dec(D.seg, Int16Array), haz = dec(D.haz, Int8Array);
+const renderer = new THREE.WebGLRenderer({canvas: document.getElementById("c"), antialias: true});
+renderer.setPixelRatio(devicePixelRatio);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x14181c);
+const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 2000);
+camera.up.set(0, 0, 1);
+camera.position.set(-60, -50, 50);
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+const geo = new THREE.BufferGeometry();
+geo.setAttribute("position", new THREE.BufferAttribute(xyz, 3));
+const col = new Float32Array(N * 3);
+geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+const pts = new THREE.Points(geo, new THREE.PointsMaterial({size: 2.2, sizeAttenuation: false, vertexColors: true}));
+scene.add(pts);
+const layers = D.hazards.map((name, h) => {
+  const idx = []; for (let i = 0; i < N; i++) if (haz[i] === h) idx.push(i);
+  const g = new THREE.BufferGeometry();
+  const p = new Float32Array(idx.length * 3);
+  idx.forEach((i, k) => { p[3*k] = xyz[3*i]; p[3*k+1] = xyz[3*i+1]; p[3*k+2] = xyz[3*i+2]; });
+  g.setAttribute("position", new THREE.BufferAttribute(p, 3));
+  const m = new THREE.Points(g, new THREE.PointsMaterial({size: 5, sizeAttenuation: false, color: 0xff00ff}));
+  m.visible = false; scene.add(m);
+  return {name, m, count: idx.length};
+});
+const L = document.getElementById("layers");
+layers.forEach(l => {
+  const lab = document.createElement("label");
+  lab.innerHTML = `<input type="checkbox"> highlight ${l.name} (${l.count})`;
+  lab.querySelector("input").onchange = e => { l.m.visible = e.target.checked; };
+  L.appendChild(lab);
+});
+function recolor() {
+  const a = document.getElementById("blend").value / 100;
+  for (let i = 0; i < N * 3; i++) col[i] = ((1 - a) * rgb[i] + a * heat[i]) / 255;
+  geo.attributes.color.needsUpdate = true;
+}
+document.getElementById("blend").oninput = recolor;
+recolor();
+function hex(c) { return "#" + c.map(v => Math.round(v).toString(16).padStart(2, "0")).join(""); }
+const strip = document.getElementById("strip");
+D.segments.forEach((s, i) => {
+  const d = document.createElement("div");
+  d.style.background = hex(s.color);
+  d.title = `${s.s0.toFixed(0)} m, risk ${s.risk.toFixed(2)}`;
+  d.onclick = () => select(i, true);
+  strip.appendChild(d);
+});
+let selected = -1;
+function select(i, fly) {
+  selected = i;
+  [...strip.children].forEach((c, k) => c.classList.toggle("sel", k === i));
+  const s = D.segments[i];
+  const max = Math.max(...s.top.map(t => t.contribution), 1e-6);
+  document.getElementById("info").innerHTML =
+    `<b>${s.s0.toFixed(0)}-${(s.s0 + 2).toFixed(0)} m</b> risk ${s.risk.toFixed(2)}<br>width ${s.width.toFixed(1)} m, sight ${s.sight.toFixed(0)} m, clearance ${s.clearance.toFixed(1)} m<table>` +
+    s.top.map(t => `<tr><td>${t.term}</td><td>${t.contribution.toFixed(3)}</td></tr><tr><td colspan=2><div class="bar" style="width:${100 * t.contribution / max}%"></div></td></tr>`).join("") + "</table>";
+  if (fly) { controls.target.set(s.center[0], s.center[1], s.center[2]); camera.position.set(s.center[0] - 12, s.center[1] - 14, s.center[2] + 10); }
+}
+const ray = new THREE.Raycaster();
+ray.params.Points.threshold = 0.5;
+renderer.domElement.addEventListener("dblclick", e => {
+  const r = renderer.domElement.getBoundingClientRect();
+  ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
+  const hit = ray.intersectObject(pts)[0];
+  if (hit) select(Math.min(seg[hit.index], D.segments.length - 1), false);
+});
+document.getElementById("info").insertAdjacentText("beforeend", " (double-click the cloud)");
+function resize() { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
+addEventListener("resize", resize); resize();
+controls.target.set(0, 0, 0);
+(function loop() { requestAnimationFrame(loop); controls.update(); renderer.render(scene, camera); })();
+</script>
+</body>
+</html>
